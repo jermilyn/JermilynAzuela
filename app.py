@@ -20,12 +20,16 @@ CREATE TABLE IF NOT EXISTS student (
 """)
 conn.commit()
 
-# Insert a default student if table is empty
+# Insert default students if table is empty
 cursor.execute("SELECT COUNT(*) FROM student")
 if cursor.fetchone()[0] == 0:
-    cursor.execute(
+    cursor.executemany(
         "INSERT INTO student (name, grade, section) VALUES (?, ?, ?)",
-        ("Jermilyn Azuela", 10, "Zechariah")
+        [
+            ("Jermilyn Azuela", 10, "Zechariah"),
+            ("Alice Santos", 9, "Genesis"),
+            ("Mark Lopez", 11, "Exodus")
+        ]
     )
     conn.commit()
 
@@ -38,51 +42,21 @@ html_page = """
 <head>
     <title>Student API UI</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #eef2f3;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            background: white;
-            width: 400px;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            text-align: center;
-        }
-        h2, h3 { color: #333; }
-        button {
-            padding: 10px 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            margin: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        button:hover { background: #2980b9; }
-        input {
-            padding: 8px;
-            margin: 10px 0;
-            width: 80%;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        #message {
-            margin-top: 10px;
-            font-weight: bold;
-        }
+        body { font-family: Arial; background: #eef2f3; display:flex; justify-content:center; align-items:center; height:100vh; }
+        .container { background:white; width:450px; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.2); text-align:center; }
+        h2,h3 { color:#333; }
+        select, input { padding:8px; margin:10px 0; width:80%; border-radius:5px; border:1px solid #ccc; }
+        button { padding:10px 20px; background:#3498db; color:white; border:none; border-radius:5px; margin:5px; cursor:pointer; transition:0.3s; }
+        button:hover { background:#2980b9; }
+        #message { margin-top:10px; font-weight:bold; }
     </style>
 </head>
 <body>
 <div class="container">
     <h2>Student Information</h2>
-    <button onclick="loadStudent()">Load Student</button>
+    <select id="studentSelect" onchange="loadStudent()">
+        <option value="">-- Select Student --</option>
+    </select>
     <p id="studentData"></p>
 
     <h3>Update Grade</h3>
@@ -99,9 +73,31 @@ html_page = """
 </div>
 
 <script>
+// Load all students into dropdown
+function loadStudentsDropdown(){
+    fetch('/students')
+    .then(res => res.json())
+    .then(data => {
+        const select = document.getElementById("studentSelect");
+        select.innerHTML = '<option value="">-- Select Student --</option>';
+        data.forEach(student => {
+            const option = document.createElement("option");
+            option.value = student.id;
+            option.text = student.name;
+            select.appendChild(option);
+        });
+    });
+}
+
+// Load selected student info
 function loadStudent() {
-    fetch('/student')
-    .then(response => response.json())
+    const studentId = document.getElementById("studentSelect").value;
+    if(!studentId) {
+        document.getElementById("studentData").innerHTML = "";
+        return;
+    }
+    fetch('/student/' + studentId)
+    .then(res => res.json())
     .then(data => {
         if(data.message){
             document.getElementById("studentData").innerText = data.message;
@@ -116,46 +112,43 @@ function loadStudent() {
 }
 
 function updateGrade() {
-    let newGrade = document.getElementById("grade").value;
-    if(!newGrade){
-        document.getElementById("message").innerText = "Please enter a valid grade!";
-        document.getElementById("message").style.color = "red";
-        return;
-    }
+    const studentId = document.getElementById("studentSelect").value;
+    const newGrade = document.getElementById("grade").value;
+    if(!studentId) { showMessage("Select a student first", "red"); return; }
+    if(!newGrade) { showMessage("Enter a valid grade", "red"); return; }
 
     fetch('/update_grade', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({grade: parseInt(newGrade)})
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id:studentId, grade:parseInt(newGrade)})
     })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById("message").innerText = data.message;
-        document.getElementById("message").style.color = "green";
-        loadStudent();
-    });
+    .then(res=>res.json())
+    .then(data=>{ showMessage(data.message,"green"); loadStudent(); });
 }
 
 function updateSection() {
-    let newSection = document.getElementById("section").value;
-    if(!newSection){
-        document.getElementById("message").innerText = "Please enter a valid section!";
-        document.getElementById("message").style.color = "red";
-        return;
-    }
+    const studentId = document.getElementById("studentSelect").value;
+    const newSection = document.getElementById("section").value;
+    if(!studentId) { showMessage("Select a student first","red"); return; }
+    if(!newSection) { showMessage("Enter a valid section","red"); return; }
 
     fetch('/update_section', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({section: newSection})
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id:studentId, section:newSection})
     })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById("message").innerText = data.message;
-        document.getElementById("message").style.color = "green";
-        loadStudent();
-    });
+    .then(res=>res.json())
+    .then(data=>{ showMessage(data.message,"green"); loadStudent(); });
 }
+
+function showMessage(msg,color){ 
+    const message = document.getElementById("message"); 
+    message.innerText = msg; 
+    message.style.color = color; 
+}
+
+// Initialize dropdown on page load
+loadStudentsDropdown();
 </script>
 </body>
 </html>
@@ -165,61 +158,51 @@ function updateSection() {
 # FLASK ROUTES
 # ==============================
 
-# Homepage (UI)
 @app.route('/')
 def home():
     return render_template_string(html_page)
 
-# Get student data
-@app.route('/student', methods=['GET'])
-def get_student():
-    cursor.execute("SELECT * FROM student LIMIT 1")
+# Get all students (for dropdown)
+@app.route('/students', methods=['GET'])
+def get_students():
+    cursor.execute("SELECT id, name FROM student")
+    rows = cursor.fetchall()
+    data = [{"id":r[0], "name":r[1]} for r in rows]
+    return jsonify(data)
+
+# Get a specific student
+@app.route('/student/<int:id>', methods=['GET'])
+def get_student(id):
+    cursor.execute("SELECT * FROM student WHERE id=?", (id,))
     row = cursor.fetchone()
     if row:
-        student_data = {"id": row[0], "name": row[1], "grade": row[2], "section": row[3]}
-        return jsonify(student_data)
-    return jsonify({"message": "No student found"}), 404
+        return jsonify({"id": row[0], "name": row[1], "grade": row[2], "section": row[3]})
+    return jsonify({"message": "Student not found"}), 404
 
-# Update student grade
+# Update grade
 @app.route('/update_grade', methods=['POST'])
 def update_grade():
     data = request.get_json()
-    if "grade" not in data:
-        return jsonify({"message": "Grade is required"}), 400
-    
-    new_grade = int(data["grade"])
-    cursor.execute("UPDATE student SET grade=? WHERE id=1", (new_grade,))
+    if not data.get("id") or "grade" not in data:
+        return jsonify({"message":"Student ID and grade required"}),400
+    cursor.execute("UPDATE student SET grade=? WHERE id=?",(data["grade"], data["id"]))
     conn.commit()
-    
-    cursor.execute("SELECT * FROM student WHERE id=1")
-    row = cursor.fetchone()
-    student_data = {"id": row[0], "name": row[1], "grade": row[2], "section": row[3]}
-    return jsonify({"message": "Grade updated successfully", "student": student_data})
+    return jsonify({"message":"Grade updated successfully"})
 
-# Update student section
+# Update section
 @app.route('/update_section', methods=['POST'])
 def update_section():
     data = request.get_json()
-    if "section" not in data:
-        return jsonify({"message": "Section is required"}), 400
-    
-    new_section = data["section"]
-    cursor.execute("UPDATE student SET section=? WHERE id=1", (new_section,))
+    if not data.get("id") or "section" not in data:
+        return jsonify({"message":"Student ID and section required"}),400
+    cursor.execute("UPDATE student SET section=? WHERE id=?",(data["section"], data["id"]))
     conn.commit()
-    
-    cursor.execute("SELECT * FROM student WHERE id=1")
-    row = cursor.fetchone()
-    student_data = {"id": row[0], "name": row[1], "grade": row[2], "section": row[3]}
-    return jsonify({"message": "Section updated successfully", "student": student_data})
+    return jsonify({"message":"Section updated successfully"})
 
 # API info
 @app.route('/info')
 def info():
-    return jsonify({
-        "API": "Student API",
-        "version": "1.0",
-        "developer": "Jermilyn Azuela"
-    })
+    return jsonify({"API":"Student API","version":"1.1","developer":"Jermilyn Azuela"})
 
 # ==============================
 # RUN APP
