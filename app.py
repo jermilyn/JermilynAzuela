@@ -4,208 +4,299 @@ import sqlite3
 app = Flask(__name__)
 
 # ==============================
+# DATABASE CONNECTION FUNCTION
+# ==============================
+def get_db():
+    conn = sqlite3.connect("students.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# ==============================
 # DATABASE SETUP
 # ==============================
-conn = sqlite3.connect("students.db", check_same_thread=False)
+conn = get_db()
 cursor = conn.cursor()
 
-# Create student table if it doesn't exist
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS student (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    grade INTEGER NOT NULL,
-    section TEXT NOT NULL
+    name TEXT UNIQUE,
+    grade INTEGER,
+    section TEXT
 )
 """)
-conn.commit()
 
-# Insert default students if table is empty
-cursor.execute("SELECT COUNT(*) FROM student")
-if cursor.fetchone()[0] == 0:
-    cursor.executemany(
-        "INSERT INTO student (name, grade, section) VALUES (?, ?, ?)",
-        [
-            ("Jermilyn Azuela", 10, "Zechariah"),
-            ("Alice Santos", 9, "Genesis"),
-            ("Mark Lopez", 11, "Exodus")
-        ]
+# Insert default students only if they don't exist
+students = [
+    ("Jermilyn Azuela", 10, "Zechariah"),
+    ("Alice Santos", 9, "Genesis"),
+    ("Mark Lopez", 11, "Exodus")
+]
+
+for s in students:
+    cursor.execute(
+        "INSERT OR IGNORE INTO student (name, grade, section) VALUES (?, ?, ?)", s
     )
-    conn.commit()
+
+conn.commit()
+conn.close()
+
 
 # ==============================
-# HTML UI EMBEDDED
+# HTML USER INTERFACE
 # ==============================
 html_page = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Student API UI</title>
-    <style>
-        body { font-family: Arial; background: #eef2f3; display:flex; justify-content:center; align-items:center; height:100vh; }
-        .container { background:white; width:450px; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.2); text-align:center; }
-        h2,h3 { color:#333; }
-        select, input { padding:8px; margin:10px 0; width:80%; border-radius:5px; border:1px solid #ccc; }
-        button { padding:10px 20px; background:#3498db; color:white; border:none; border-radius:5px; margin:5px; cursor:pointer; transition:0.3s; }
-        button:hover { background:#2980b9; }
-        #message { margin-top:10px; font-weight:bold; }
-    </style>
+<title>Student API</title>
+<style>
+body{
+font-family:Arial;
+background:#eef2f3;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+}
+
+.container{
+background:white;
+padding:25px;
+width:420px;
+border-radius:10px;
+box-shadow:0 4px 10px rgba(0,0,0,0.2);
+text-align:center;
+}
+
+button{
+padding:10px;
+background:#3498db;
+color:white;
+border:none;
+border-radius:5px;
+margin:5px;
+cursor:pointer;
+}
+
+button:hover{
+background:#2980b9;
+}
+
+select,input{
+padding:8px;
+margin:8px;
+width:80%;
+}
+
+#message{
+font-weight:bold;
+margin-top:10px;
+}
+</style>
 </head>
+
 <body>
+
 <div class="container">
-    <h2>Student Information</h2>
-    <select id="studentSelect" onchange="loadStudent()">
-        <option value="">-- Select Student --</option>
-    </select>
-    <p id="studentData"></p>
 
-    <h3>Update Grade</h3>
-    <input type="number" id="grade" placeholder="Enter new grade">
-    <br>
-    <button onclick="updateGrade()">Update Grade</button>
+<h2>Student Information</h2>
 
-    <h3>Update Section</h3>
-    <input type="text" id="section" placeholder="Enter new section">
-    <br>
-    <button onclick="updateSection()">Update Section</button>
+<select id="studentSelect" onchange="loadStudent()">
+<option value="">Select Student</option>
+</select>
 
-    <p id="message"></p>
+<p id="studentData"></p>
+
+<h3>Update Grade</h3>
+<input type="number" id="grade" placeholder="New Grade">
+<br>
+<button onclick="updateGrade()">Update Grade</button>
+
+<h3>Update Section</h3>
+<input type="text" id="section" placeholder="New Section">
+<br>
+<button onclick="updateSection()">Update Section</button>
+
+<p id="message"></p>
+
 </div>
 
 <script>
-// Load all students into dropdown
-function loadStudentsDropdown(){
-    fetch('/students')
-    .then(res => res.json())
-    .then(data => {
-        const select = document.getElementById("studentSelect");
-        select.innerHTML = '<option value="">-- Select Student --</option>';
-        data.forEach(student => {
-            const option = document.createElement("option");
-            option.value = student.id;
-            option.text = student.name;
-            select.appendChild(option);
-        });
-    });
+
+function showMessage(msg,color){
+let m=document.getElementById("message");
+m.innerText=msg;
+m.style.color=color;
 }
 
-// Load selected student info
-function loadStudent() {
-    const studentId = document.getElementById("studentSelect").value;
-    if(!studentId) {
-        document.getElementById("studentData").innerHTML = "";
-        return;
-    }
-    fetch('/student/' + studentId)
-    .then(res => res.json())
-    .then(data => {
-        if(data.message){
-            document.getElementById("studentData").innerText = data.message;
-        } else {
-            document.getElementById("studentData").innerHTML =
-                "Name: " + data.name + "<br>" +
-                "Grade: " + data.grade + "<br>" +
-                "Section: " + data.section;
-        }
-        document.getElementById("message").innerText = "";
-    });
+function loadStudents(){
+fetch('/students')
+.then(r=>r.json())
+.then(data=>{
+let select=document.getElementById("studentSelect");
+select.innerHTML='<option value="">Select Student</option>';
+
+data.forEach(s=>{
+let option=document.createElement("option");
+option.value=s.id;
+option.text=s.name;
+select.appendChild(option);
+});
+});
 }
 
-function updateGrade() {
-    const studentId = document.getElementById("studentSelect").value;
-    const newGrade = document.getElementById("grade").value;
-    if(!studentId) { showMessage("Select a student first", "red"); return; }
-    if(!newGrade) { showMessage("Enter a valid grade", "red"); return; }
+function loadStudent(){
+let id=document.getElementById("studentSelect").value;
 
-    fetch('/update_grade', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({id:studentId, grade:parseInt(newGrade)})
-    })
-    .then(res=>res.json())
-    .then(data=>{ showMessage(data.message,"green"); loadStudent(); });
+if(!id){
+document.getElementById("studentData").innerHTML="";
+return;
 }
 
-function updateSection() {
-    const studentId = document.getElementById("studentSelect").value;
-    const newSection = document.getElementById("section").value;
-    if(!studentId) { showMessage("Select a student first","red"); return; }
-    if(!newSection) { showMessage("Enter a valid section","red"); return; }
-
-    fetch('/update_section', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({id:studentId, section:newSection})
-    })
-    .then(res=>res.json())
-    .then(data=>{ showMessage(data.message,"green"); loadStudent(); });
+fetch('/student/'+id)
+.then(r=>r.json())
+.then(data=>{
+document.getElementById("studentData").innerHTML=
+"Name: "+data.name+"<br>"+
+"Grade: "+data.grade+"<br>"+
+"Section: "+data.section;
+});
 }
 
-function showMessage(msg,color){ 
-    const message = document.getElementById("message"); 
-    message.innerText = msg; 
-    message.style.color = color; 
+function updateGrade(){
+let id=document.getElementById("studentSelect").value;
+let grade=document.getElementById("grade").value;
+
+if(!id){showMessage("Select student first","red");return;}
+if(!grade){showMessage("Enter grade","red");return;}
+
+fetch('/update_grade',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({id:id,grade:grade})
+})
+.then(r=>r.json())
+.then(data=>{
+showMessage(data.message,"green");
+loadStudent();
+});
 }
 
-// Initialize dropdown on page load
-loadStudentsDropdown();
+function updateSection(){
+let id=document.getElementById("studentSelect").value;
+let section=document.getElementById("section").value;
+
+if(!id){showMessage("Select student first","red");return;}
+if(!section){showMessage("Enter section","red");return;}
+
+fetch('/update_section',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({id:id,section:section})
+})
+.then(r=>r.json())
+.then(data=>{
+showMessage(data.message,"green");
+loadStudent();
+});
+}
+
+loadStudents();
+
 </script>
+
 </body>
 </html>
 """
 
+
 # ==============================
-# FLASK ROUTES
+# ROUTES
 # ==============================
 
 @app.route('/')
 def home():
     return render_template_string(html_page)
 
-# Get all students (for dropdown)
-@app.route('/students', methods=['GET'])
-def get_students():
-    cursor.execute("SELECT id, name FROM student")
-    rows = cursor.fetchall()
-    data = [{"id":r[0], "name":r[1]} for r in rows]
-    return jsonify(data)
 
-# Get a specific student
-@app.route('/student/<int:id>', methods=['GET'])
-def get_student(id):
-    cursor.execute("SELECT * FROM student WHERE id=?", (id,))
-    row = cursor.fetchone()
+@app.route('/students')
+def students():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    rows = cursor.execute("SELECT id,name FROM student").fetchall()
+
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/student/<int:id>')
+def student(id):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    row = cursor.execute(
+        "SELECT * FROM student WHERE id=?", (id,)
+    ).fetchone()
+
+    conn.close()
+
     if row:
-        return jsonify({"id": row[0], "name": row[1], "grade": row[2], "section": row[3]})
-    return jsonify({"message": "Student not found"}), 404
+        return jsonify(dict(row))
 
-# Update grade
+    return jsonify({"message": "Student not found"})
+
+
 @app.route('/update_grade', methods=['POST'])
 def update_grade():
     data = request.get_json()
-    if not data.get("id") or "grade" not in data:
-        return jsonify({"message":"Student ID and grade required"}),400
-    cursor.execute("UPDATE student SET grade=? WHERE id=?",(data["grade"], data["id"]))
-    conn.commit()
-    return jsonify({"message":"Grade updated successfully"})
 
-# Update section
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE student SET grade=? WHERE id=?",
+        (data["grade"], data["id"])
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Grade updated successfully"})
+
+
 @app.route('/update_section', methods=['POST'])
 def update_section():
     data = request.get_json()
-    if not data.get("id") or "section" not in data:
-        return jsonify({"message":"Student ID and section required"}),400
-    cursor.execute("UPDATE student SET section=? WHERE id=?",(data["section"], data["id"]))
-    conn.commit()
-    return jsonify({"message":"Section updated successfully"})
 
-# API info
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE student SET section=? WHERE id=?",
+        (data["section"], data["id"])
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Section updated successfully"})
+
+
 @app.route('/info')
 def info():
-    return jsonify({"API":"Student API","version":"1.1","developer":"Jermilyn Azuela"})
+    return jsonify({
+        "API": "Student API",
+        "version": "2.0",
+        "developer": "Jermilyn Azuela"
+    })
+
 
 # ==============================
-# RUN APP
+# RUN SERVER
 # ==============================
 if __name__ == "__main__":
     app.run(debug=True)
