@@ -80,7 +80,7 @@ html_page = """
         <label>Age</label>
         <input type="number" id="age" placeholder="Enter age">
 
-        <label>Section</label>
+        <label>Year/Section</label>
         <input type="text" id="section" placeholder="Enter section">
 
         <button type="button" id="regBtn" class="btn-register" onclick="registerStudent()">Register Student</button>
@@ -96,7 +96,7 @@ html_page = """
                 <th>ID</th>
                 <th>Name</th>
                 <th>Age</th>
-                <th>Section</th>
+                <th>Year/Section</th>
             </tr>
         </thead>
         <tbody id="studentTableBody">
@@ -122,7 +122,7 @@ html_page = """
                         <td>${s.student_id}</td>
                         <td>${s.name}</td>
                         <td>${s.age}</td>
-                        <td>${s.section}</td>
+                        <td>${s.year/section}</td>
                     </tr>
                 `;
             });
@@ -133,10 +133,10 @@ html_page = """
         const student_id = document.getElementById("student_id").value;
         const name = document.getElementById("name").value;
         const age = document.getElementById("age").value;
-        const section = document.getElementById("section").value;
+        const section = document.getElementById("year/section").value;
         const btn = document.getElementById("regBtn");
 
-        if(!student_id || !name || !age || !section) {
+        if(!student_id || !name || !age || !year/section) {
             showMessage("Please fill in all fields", "red");
             return;
         }
@@ -151,7 +151,7 @@ html_page = """
                 student_id: student_id,
                 name: name,
                 age: age,
-                section: section
+                year/section: year/section
             })
         })
         .then(r => r.json())
@@ -162,7 +162,7 @@ html_page = """
                 document.getElementById("student_id").value = "";
                 document.getElementById("name").value = "";
                 document.getElementById("age").value = "";
-                document.getElementById("section").value = "";
+                document.getElementById("year/section").value = "";
                 loadStudents(); // Refresh table
             } else {
                 showMessage("Error: " + data.message, "red");
@@ -202,8 +202,8 @@ def register():
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO student (student_id, name, age, section) VALUES (?, ?, ?, ?)", 
-            (data['student_id'], data['name'], data['age'], data['section'])
+            "INSERT INTO student (student_id, name, age, year/section) VALUES (?, ?, ?, ?)", 
+            (data['student_id'], data['name'], data['age'], data['year/section'])
         )
         conn.commit()
         return jsonify({"status": "success"})
