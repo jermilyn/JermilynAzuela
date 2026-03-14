@@ -37,6 +37,23 @@ def get_all_students():
         rows = conn.execute(query).fetchall()
     return [dict(row) for row in rows]
 
+def update_student(student_id, name, age, year_section):
+    """Updates an existing student's details based on their unique Student ID."""
+    query = """
+    UPDATE student 
+    SET name = ?, age = ?, year_section = ? 
+    WHERE student_id = ?
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(query, (name, age, year_section, student_id))
+            conn.commit()
+            # Check if any row was actually updated
+            return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Update Error: {e}")
+        return False
+
 def delete_student(student_id):
     """Deletes a student based on their unique Student ID."""
     query = "DELETE FROM student WHERE student_id = ?"
